@@ -190,12 +190,13 @@ def export(objectslist, filename, argstring):
     print("postprocessing...")
     gcode = ""
 
-    # write header
-    if OUTPUT_HEADER:
-        gcode += linenumber() + "(Exported by FreeCAD)\n"
-        gcode += linenumber() + "(Post Processor: " + __name__ + ")\n"
-        gcode += linenumber() + "(Output Time:" + str(now) + ")\n"
-
+       # write header for NUM750
+   if OUTPUT_HEADER:
+       gcode += "%000 (PROGRAM_NAME;1)\n"
+       gcode += "E60000=-070000\n"
+       gcode += "E61000=-177000\n"
+       gcode += "E62000=-150000\n"
+  
     # Write the preamble
     if OUTPUT_COMMENTS:
         gcode += linenumber() + "(begin preamble)\n"
