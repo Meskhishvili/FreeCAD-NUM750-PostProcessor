@@ -83,7 +83,7 @@ parser.add_argument(
 TOOLTIP_ARGS = parser.format_help()
 
 # These globals set common customization preferences
-OUTPUT_COMMENTS = True
+OUTPUT_COMMENTS = False
 OUTPUT_HEADER = True
 OUTPUT_LINE_NUMBERS = False
 SHOW_EDITOR = True
