@@ -162,7 +162,7 @@ def export(objectslist, filename, argstring):
 
     # write header for NUM750
     if OUTPUT_HEADER:
-        gcode += "%001 (PROGRAM_NAME;1)\n"
+        gcode += "%002 (PROGRAM_NAME;1)\n"
         gcode += "E60000=-070000\n"
         gcode += "E61000=-177000\n"
         gcode += "E62000=-150000\n"
