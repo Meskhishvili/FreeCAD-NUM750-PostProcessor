@@ -343,6 +343,13 @@ def parse(pathobj):
         for c in pathobj.Path.Commands:
             outstring = []
             command = c.Name
+            
+            # Добавляем M41 перед M3 или M4 для NUM750 (режим редуктора)
+            if command == "M3":
+                command = "M41M3"
+            elif command == "M4":
+                command = "M41M4"
+                
             outstring.append(command)
 
             # if modal: suppress the command if it is the same as the last one
