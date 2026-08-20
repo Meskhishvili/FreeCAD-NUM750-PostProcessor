@@ -37,17 +37,12 @@ from builtins import open as pyopen
 TOOLTIP = """
 This is a postprocessor file for the Path workbench. It is used to
 take a pseudo-G-code fragment outputted by a Path object, and output
-real G-code suitable for a linuxcnc 3 axis mill. This postprocessor, once placed
-in the appropriate PathScripts folder, can be used directly from inside
-FreeCAD, via the GUI importer or via python scripts with:
-
-import linuxcnc_post
-linuxcnc_post.export(object,"/path/to/file.ncc","")
+real G-code suitable for a NUM 750 3-axis mill.
 """
 
 now = datetime.datetime.now()
 
-parser = argparse.ArgumentParser(prog="linuxcnc", add_help=False)
+parser = argparse.ArgumentParser(prog="num750", add_help=False)
 parser.add_argument("--no-header", action="store_true", help="suppress header output")
 parser.add_argument("--no-comments", action="store_true", help="suppress comment output")
 parser.add_argument("--line-numbers", action="store_true", help="prefix with line numbers")
@@ -63,7 +58,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--postamble",
-    help='set commands to be issued after the last command, default="M05\\nG17 G54 G90 G80 G40\\nM2\\n"',
+    help='set commands to be issued after the last command, default="M05\\nG17 G54 G90 G80 G40\\nM02\\n"',
 )
 parser.add_argument(
     "--inches", action="store_true", help="Convert output for US imperial mode (G20)"
@@ -87,36 +82,30 @@ OUTPUT_COMMENTS = False
 OUTPUT_HEADER = True
 OUTPUT_LINE_NUMBERS = False
 SHOW_EDITOR = True
-MODAL = False  # if true commands are suppressed if the same as previous line.
-USE_TLO = False  # if true G43 will be output following tool changes
-OUTPUT_DOUBLES = True  # if false duplicate axis values are suppressed if the same as previous line.
+MODAL = False
+USE_TLO = False
+OUTPUT_DOUBLES = True
 COMMAND_SPACE = " "
-LINENR = 100  # line number starting value
+LINENR = 100
 
-# These globals will be reflected in the Machine configuration of the project
-UNITS = "G21"  # G21 for metric, G20 for us standard
+UNITS = "G21"
 UNIT_SPEED_FORMAT = "mm/min"
 UNIT_FORMAT = "mm"
 
-MACHINE_NAME = "LinuxCNC"
+MACHINE_NAME = "NUM750"
 CORNER_MIN = {"x": 0, "y": 0, "z": 0}
 CORNER_MAX = {"x": 500, "y": 300, "z": 300}
 PRECISION = 3
 
-# Preamble text will appear at the beginning of the GCODE output file.
 PREAMBLE = """G17 G54 G40 G49 G80 G90
 """
 
-# Postamble text will appear following the last operation.
 POSTAMBLE = """M05
 G17 G54 G90 G80 G40
 M02
 """
 
-# Pre operation text will be inserted before every operation
 PRE_OPERATION = """"""
-
-# Post operation text will be inserted after every operation
 POST_OPERATION = """"""
 
 # Tool Change commands will be inserted before a tool change
@@ -125,19 +114,9 @@ TOOL_CHANGE = """M0M61
 
 
 def processArguments(argstring):
-    global OUTPUT_HEADER
-    global OUTPUT_COMMENTS
-    global OUTPUT_LINE_NUMBERS
-    global SHOW_EDITOR
-    global PRECISION
-    global PREAMBLE
-    global POSTAMBLE
-    global UNITS
-    global UNIT_SPEED_FORMAT
-    global UNIT_FORMAT
-    global MODAL
-    global USE_TLO
-    global OUTPUT_DOUBLES
+    global OUTPUT_HEADER, OUTPUT_COMMENTS, OUTPUT_LINE_NUMBERS, SHOW_EDITOR
+    global PRECISION, PREAMBLE, POSTAMBLE, UNITS, UNIT_SPEED_FORMAT, UNIT_FORMAT
+    global MODAL, USE_TLO, OUTPUT_DOUBLES
 
     try:
         args = parser.parse_args(shlex.split(argstring))
@@ -149,7 +128,6 @@ def processArguments(argstring):
             OUTPUT_LINE_NUMBERS = True
         if args.no_show_editor:
             SHOW_EDITOR = False
-        print("Show editor = %d" % SHOW_EDITOR)
         PRECISION = args.precision
         if args.preamble is not None:
             PREAMBLE = args.preamble.replace("\\n", "\n")
@@ -165,27 +143,20 @@ def processArguments(argstring):
         if args.no_tlo:
             USE_TLO = False
         if args.axis_modal:
-            print("here")
             OUTPUT_DOUBLES = False
-
     except Exception:
         return False
-
     return True
 
 
 def export(objectslist, filename, argstring):
     if not processArguments(argstring):
         return None
-    global UNITS
-    global UNIT_FORMAT
-    global UNIT_SPEED_FORMAT
+    global UNITS, UNIT_FORMAT, UNIT_SPEED_FORMAT
 
     for obj in objectslist:
         if not hasattr(obj, "Path"):
-            print(
-                "the object " + obj.Name + " is not a path. Please select only path and Compounds."
-            )
+            print("the object " + obj.Name + " is not a path. Please select only path and Compounds.")
             return None
 
     print("postprocessing...")
@@ -193,13 +164,13 @@ def export(objectslist, filename, argstring):
 
     # write header for NUM750
     if OUTPUT_HEADER:
-       gcode += "%000 (PROGRAM_NAME;1)\n"
-       gcode += "E60000=-070000\n"
-       gcode += "E61000=-177000\n"
-       gcode += "E62000=-150000\n"
-       gcode += "E50001=040000 E52001=000000\n"
-       gcode += "E50002=040000 E52002=000000\n"
-       gcode += "E50003=040000 E52003=000000\n"
+        gcode += "%000 (PROGRAM_NAME;1)\n"
+        gcode += "E60000=-070000\n"
+        gcode += "E61000=-177000\n"
+        gcode += "E62000=-150000\n"
+        gcode += "E50001=040000 E52001=000000\n"
+        gcode += "E50002=040000 E52002=000000\n"
+        gcode += "E50003=040000 E52003=000000\n"
   
     # Write the preamble
     if OUTPUT_COMMENTS:
@@ -209,45 +180,37 @@ def export(objectslist, filename, argstring):
     gcode += linenumber() + UNITS + "\n"
 
     for obj in objectslist:
-        # Skip inactive operations
         if not PathUtil.activeForOp(obj):
             continue
 
-        # do the pre_op
         if OUTPUT_COMMENTS:
             gcode += linenumber() + "(begin operation: %s)\n" % obj.Label
             gcode += linenumber() + "(machine units: %s)\n" % (UNIT_SPEED_FORMAT)
         for line in PRE_OPERATION.splitlines(True):
             gcode += linenumber() + line
 
-        # get coolant mode
         coolantMode = PathUtil.coolantModeForOp(obj)
 
-        # turn coolant on if required
         if OUTPUT_COMMENTS:
             if not coolantMode == "None":
                 gcode += linenumber() + "(Coolant On:" + coolantMode + ")\n"
         if coolantMode == "Flood":
-            gcode += linenumber() + "M8" + "\n"
+            gcode += linenumber() + "M8\n"
         if coolantMode == "Mist":
-            gcode += linenumber() + "M7" + "\n"
+            gcode += linenumber() + "M7\n"
 
-        # process the operation gcode
         gcode += parse(obj)
 
-        # do the post_op
         if OUTPUT_COMMENTS:
             gcode += linenumber() + "(finish operation: %s)\n" % obj.Label
         for line in POST_OPERATION.splitlines(True):
             gcode += linenumber() + line
 
-        # turn coolant off if required
         if not coolantMode == "None":
             if OUTPUT_COMMENTS:
                 gcode += linenumber() + "(Coolant Off:" + coolantMode + ")\n"
-            gcode += linenumber() + "M9" + "\n"
+            gcode += linenumber() + "M9\n"
 
-    # do the post_amble
     if OUTPUT_COMMENTS:
         gcode += "(begin postamble)\n"
     for line in POSTAMBLE.splitlines():
@@ -285,62 +248,25 @@ def linenumber():
 
 
 def parse(pathobj):
-    global PRECISION
-    global MODAL
-    global OUTPUT_DOUBLES
-    global UNIT_FORMAT
-    global UNIT_SPEED_FORMAT
+    global PRECISION, MODAL, OUTPUT_DOUBLES, UNIT_FORMAT, UNIT_SPEED_FORMAT
 
     out = ""
     lastcommand = None
     precision_string = "." + str(PRECISION) + "f"
-    currLocation = {}  # keep track for no doubles
+    currLocation = {}
 
-    # the order of parameters
-    # linuxcnc doesn't want K properties on XY plane  Arcs need work.
-    params = [
-        "X",
-        "Y",
-        "Z",
-        "A",
-        "B",
-        "C",
-        "I",
-        "J",
-        "F",
-        "S",
-        "T",
-        "Q",
-        "R",
-        "L",
-        "H",
-        "D",
-        "P",
-    ]
+    params = ["X", "Y", "Z", "A", "B", "C", "I", "J", "F", "S", "T", "Q", "R", "L", "H", "D", "P"]
     firstmove = Path.Command("G0", {"X": -1, "Y": -1, "Z": -1, "F": 0.0})
-    currLocation.update(firstmove.Parameters)  # set First location Parameters
+    currLocation.update(firstmove.Parameters)
 
-    if hasattr(pathobj, "Group"):  # We have a compound or project.
-        # if OUTPUT_COMMENTS:
-        #     out += linenumber() + "(compound: " + pathobj.Label + ")\n"
+    if hasattr(pathobj, "Group"):
         for p in pathobj.Group:
             out += parse(p)
         return out
-    else:  # parsing simple path
-        # groups might contain non-path things like stock.
+    else:
         if not hasattr(pathobj, "Path"):
             return out
 
-        # if OUTPUT_COMMENTS:
-        #     out += linenumber() + "(" + pathobj.Label + ")\n"
-
-        # The following "for" statement was fairly recently added
-        # but seems to be using the A, B, and C parameters in ways
-        # that don't appear to be compatible with how the PATH code
-        # uses the A, B, and C parameters.  I have reverted the
-        # change here until we can figure out what it going on.
-        #
-        # for c in PathUtils.getPathWithPlacement(pathobj).Commands:
         for c in pathobj.Path.Commands:
             outstring = []
             command = c.Name
@@ -353,61 +279,38 @@ def parse(pathobj):
                 
             outstring.append(command)
 
-            # if modal: suppress the command if it is the same as the last one
             if MODAL is True:
                 if command == lastcommand:
                     outstring.pop(0)
 
-            if c.Name.startswith("(") and not OUTPUT_COMMENTS:  # command is a comment
+            if c.Name.startswith("(") and not OUTPUT_COMMENTS:
                 continue
 
-            # Handle G84/G74 tapping cycles
             if command in ("G84", "G74") and "F" in c.Parameters:
                 pitch_mm = float(c.Parameters["F"])
-                c.Parameters.pop("F")  # Remove F from output, we'll handle it
-
-                # Get spindle speed (from S param or last known value)
+                c.Parameters.pop("F")
                 spindle_speed = None
                 if "S" in c.Parameters:
                     spindle_speed = float(c.Parameters["S"])
                     c.Parameters.pop("S")
-
-                # Convert pitch to inches if needed
-                if UNITS == "G20":  # imperial
+                if UNITS == "G20":
                     pitch = pitch_mm / 25.4
                 else:
                     pitch = pitch_mm
-
-                # Calculate feed rate
                 if spindle_speed is not None:
                     feed_rate = pitch * spindle_speed
                     speed = Units.Quantity(feed_rate, UNIT_SPEED_FORMAT)
-                    outstring.append(
-                        "F" + format(float(speed.getValueAs(UNIT_SPEED_FORMAT)), precision_string)
-                    )
+                    outstring.append("F" + format(float(speed.getValueAs(UNIT_SPEED_FORMAT)), precision_string))
                 else:
-                    # No spindle speed found, output pitch as F
                     outstring.append("F" + format(pitch, precision_string))
 
-            # Now add the remaining parameters in order
             for param in params:
                 if param in c.Parameters:
-                    if param == "F" and (
-                        currLocation[param] != c.Parameters[param] or OUTPUT_DOUBLES
-                    ):
-                        if c.Name not in [
-                            "G0",
-                            "G00",
-                        ]:  # linuxcnc doesn't use rapid speeds
+                    if param == "F" and (currLocation.get(param) != c.Parameters[param] or OUTPUT_DOUBLES):
+                        if c.Name not in ["G0", "G00"]:
                             speed = Units.Quantity(c.Parameters["F"], FreeCAD.Units.Velocity)
                             if speed.getValueAs(UNIT_SPEED_FORMAT) > 0.0:
-                                outstring.append(
-                                    param
-                                    + format(
-                                        float(speed.getValueAs(UNIT_SPEED_FORMAT)),
-                                        precision_string,
-                                    )
-                                )
+                                outstring.append(param + format(float(speed.getValueAs(UNIT_SPEED_FORMAT)), precision_string))
                         else:
                             continue
                     elif param == "T":
@@ -419,62 +322,48 @@ def parse(pathobj):
                     elif param == "S":
                         outstring.append(param + str(int(c.Parameters["S"])))
                     else:
-                        if (
-                            (not OUTPUT_DOUBLES)
-                            and (param in currLocation)
-                            and (currLocation[param] == c.Parameters[param])
-                        ):
+                        if (not OUTPUT_DOUBLES) and (param in currLocation) and (currLocation[param] == c.Parameters[param]):
                             continue
                         else:
                             if param in ("A", "B", "C"):
-                                outstring.append(
-                                    param + format(float(c.Parameters[param]), precision_string)
-                                )
+                                outstring.append(param + format(float(c.Parameters[param]), precision_string))
                             else:
                                 pos = Units.Quantity(c.Parameters[param], FreeCAD.Units.Length)
-                                outstring.append(
-                                    param
-                                    + format(float(pos.getValueAs(UNIT_FORMAT)), precision_string)
-                                )
+                                outstring.append(param + format(float(pos.getValueAs(UNIT_FORMAT)), precision_string))
 
-            # store the latest command
             lastcommand = command
             currLocation.update(c.Parameters)
 
-   # Check for Tool Change:
-   if command == "M6":
-       # stop the spindle
-       out += linenumber() + "M5\n"
-       for line in TOOL_CHANGE.splitlines(True):
-           out += linenumber() + line
-       
-       # Add tool number with offset (T2D2M6 format)
-       if "T" in c.Parameters:
-           tool_num = int(c.Parameters["T"])
-           out += linenumber() + "T" + str(tool_num) + "D" + str(tool_num) + "M6\n"
+            # Check for Tool Change:
+            if command == "M6":
+                # stop the spindle
+                out += linenumber() + "M5\n"
+                for line in TOOL_CHANGE.splitlines(True):
+                    out += linenumber() + line
+                
+                # Add tool number with offset (T2D2M6 format)
+                if "T" in c.Parameters:
+                    tool_num = int(c.Parameters["T"])
+                    out += linenumber() + "T" + str(tool_num) + "D" + str(tool_num) + "M6\n"
+                
+                # Clear outstring so we don't print "M6" again at the end of the loop
+                outstring = []
 
-                # add height offset
                 if USE_TLO:
                     tool_height = "\nG43 H" + str(int(c.Parameters["T"]))
                     outstring.append(tool_height)
 
             if command == "message":
                 if OUTPUT_COMMENTS is False:
-                    out = []
+                    outstring = []
                 else:
-                    outstring.pop(0)  # remove the command
+                    outstring.pop(0)
 
-            # prepend a line number and append a newline
             if len(outstring) >= 1:
                 if OUTPUT_LINE_NUMBERS:
-                    outstring.insert(0, (linenumber()))
-
-                # append the line to the final output
+                    outstring.insert(0, linenumber())
                 for w in outstring:
                     out += w + COMMAND_SPACE
                 out += "\n"
 
         return out
-
-
-# print(__name__ + " gcode postprocessor loaded.")
