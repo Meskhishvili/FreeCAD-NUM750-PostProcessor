@@ -338,7 +338,7 @@ def parse(pathobj):
                 for line in TOOL_CHANGE.splitlines(True):
                     out += linenumber() + line
                 
-                # Add tool number with offset (T2D2M6 format)
+                # Add tool number with offset (T1D1M6 format)
                 if "T" in c.Parameters:
                     tool_num = int(c.Parameters["T"])
                     out += linenumber() + "T" + str(tool_num) + "D" + str(tool_num) + "M6\n"
