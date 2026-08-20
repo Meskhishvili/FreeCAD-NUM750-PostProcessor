@@ -196,6 +196,9 @@ def export(objectslist, filename, argstring):
        gcode += "E60000=-070000\n"
        gcode += "E61000=-177000\n"
        gcode += "E62000=-150000\n"
+       gcode += "E50001=040000 E52001=000000\n"
+       gcode += "E50002=040000 E52002=000000\n"
+       gcode += "E50003=040000 E52003=000000\n"
   
     # Write the preamble
     if OUTPUT_COMMENTS:
