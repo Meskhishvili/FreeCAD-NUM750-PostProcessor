@@ -120,7 +120,8 @@ PRE_OPERATION = """"""
 POST_OPERATION = """"""
 
 # Tool Change commands will be inserted before a tool change
-TOOL_CHANGE = """M0M61"""
+TOOL_CHANGE = """M0M61
+"""
 
 
 def processArguments(argstring):
@@ -440,12 +441,17 @@ def parse(pathobj):
             lastcommand = command
             currLocation.update(c.Parameters)
 
-            # Check for Tool Change:
-            if command == "M6":
-                # stop the spindle
-                out += linenumber() + "M5\n"
-                for line in TOOL_CHANGE.splitlines(True):
-                    out += linenumber() + line
+   # Check for Tool Change:
+   if command == "M6":
+       # stop the spindle
+       out += linenumber() + "M5\n"
+       for line in TOOL_CHANGE.splitlines(True):
+           out += linenumber() + line
+       
+       # Add tool number with offset (T2D2M6 format)
+       if "T" in c.Parameters:
+           tool_num = int(c.Parameters["T"])
+           out += linenumber() + "T" + str(tool_num) + "D" + str(tool_num) + "M6\n"
 
                 # add height offset
                 if USE_TLO:
