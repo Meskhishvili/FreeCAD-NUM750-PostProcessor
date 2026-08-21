@@ -42,13 +42,13 @@ OUTPUT_COMMENTS = False
 OUTPUT_HEADER = True
 OUTPUT_LINE_NUMBERS = False
 SHOW_EDITOR = True
-MODAL = True
+MODAL = True  # Включено, чтобы не повторять G0/G1
 USE_TLO = False
 OUTPUT_DOUBLES = False
 COMMAND_SPACE = " "
 LINENR = 100
 TOOL_COUNT = 0  # Счётчик инструментов
-LINE_NUM = 0  # Счётчик номеров строк N1, N2, N3
+LINE_NUM = 0    # Счётчик номеров строк N1, N2, N3
 
 UNITS = ""
 UNIT_SPEED_FORMAT = "mm/min"
@@ -57,7 +57,7 @@ UNIT_FORMAT = "mm"
 MACHINE_NAME = "NUM750"
 CORNER_MIN = {"x": 0, "y": 0, "z": 0}
 CORNER_MAX = {"x": 500, "y": 300, "z": 300}
-PRECISION = 0  # Без знаков после запятой
+PRECISION = 0  # Без знаков после запятой (5.000 -> 5)
 
 PREAMBLE = """"""
 POSTAMBLE = """M02
@@ -122,7 +122,7 @@ def export(objectslist, filename, argstring):
 
     # Заголовок NUM750
     if OUTPUT_HEADER:
-        gcode += "%006 (PROGRAM_NAME;1)\n"
+        gcode += "%007 (PROGRAM_NAME;1)\n"
         gcode += "E60000=-070000\n"
         gcode += "E61000=-177000\n"
         gcode += "E62000=-150000\n"
@@ -209,6 +209,7 @@ def linenumber():
 
 def parse(pathobj):
     global PRECISION, MODAL, OUTPUT_DOUBLES, UNIT_FORMAT, UNIT_SPEED_FORMAT
+    global TOOL_COUNT, LINE_NUM  # Добавляем глобальные счётчики
 
     out = ""
     lastcommand = None
@@ -231,17 +232,15 @@ def parse(pathobj):
             outstring = []
             command = c.Name
 
-            # Добавляем M41 перед M3 или M4 для NUM750 (режим редуктора)
-if command == "M3":
-    global LINE_NUM
-    LINE_NUM += 1
-    out += "N" + str(LINE_NUM) + " "
-    command = "M41M3"
-elif command == "M4":
-    global LINE_NUM
-    LINE_NUM += 1
-    out += "N" + str(LINE_NUM) + " "
-    command = "M41M4"
+            # Добавляем M41 перед M3 или M4 для NUM750 (режим редуктора) + номер строки
+            if command == "M3":
+                LINE_NUM += 1
+                out += "N" + str(LINE_NUM) + " "
+                command = "M41M3"
+            elif command == "M4":
+                LINE_NUM += 1
+                out += "N" + str(LINE_NUM) + " "
+                command = "M41M4"
 
             outstring.append(command)
 
@@ -284,22 +283,21 @@ elif command == "M4":
             currLocation.update(c.Parameters)
 
             # Check for Tool Change:
-if command == "M6":
-    global TOOL_COUNT
-    TOOL_COUNT += 1
-    
-    # M0M61 только для 2-го и последующих инструментов
-    if TOOL_COUNT > 1:
-        for line in TOOL_CHANGE.splitlines(True):
-            out += linenumber() + line
-    
-    # Add tool number with offset (T1D1M6 format)
-    if "T" in c.Parameters:
-        tool_num = int(c.Parameters["T"])
-        out += linenumber() + "T" + str(tool_num) + "D" + str(tool_num) + "M6\n"
-    
-    # Clear outstring so we don't print "M6" again at the end of the loop
-    outstring = []
+            if command == "M6":
+                TOOL_COUNT += 1
+                
+                # M0M61 только для 2-го и последующих инструментов
+                if TOOL_COUNT > 1:
+                    for line in TOOL_CHANGE.splitlines(True):
+                        out += linenumber() + line
+                
+                # Add tool number with offset (T1D1M6 format)
+                if "T" in c.Parameters:
+                    tool_num = int(c.Parameters["T"])
+                    out += linenumber() + "T" + str(tool_num) + "D" + str(tool_num) + "M6\n"
+                
+                # Clear outstring so we don't print "M6" again at the end of the loop
+                outstring = []
 
             if command == "message":
                 if OUTPUT_COMMENTS is False:
@@ -307,20 +305,19 @@ if command == "M6":
                 else:
                     outstring.pop(0)
 
-            # Skip empty G0/G1 commands and commands with only zero coordinates
-if len(outstring) >= 1:
-    # Check if it's just "G0" or "G1" with no coordinates
-    if outstring == ["G0"] or outstring == ["G1"]:
-        outstring = []
-    # Check if all coordinates are zero (X0 Y0, X0 Y0 Z0, etc.)
-    elif any(coord in ' '.join(outstring) for coord in ['X0.000', 'Y0.000', 'Z0.000']):
-        # Count how many zero coordinates
-        zero_count = sum(1 for coord in ['X0.000', 'Y0.000', 'Z0.000'] if coord in ' '.join(outstring))
-        # Count total coordinates
-        total_coords = sum(1 for coord in ['X', 'Y', 'Z'] if coord in ' '.join(outstring))
-        # If all coordinates are zero, skip
-        if zero_count == total_coords:
-            outstring = []
+            # Проверка на пустые команды или команды только с нулевыми координатами
+            if len(outstring) >= 1:
+                if outstring == ["G0"] or outstring == ["G1"]:
+                    outstring = []
+                else:
+                    # Так как PRECISION = 0, нули будут выглядеть как X0, Y0, Z0
+                    zero_coords = ['X0', 'Y0', 'Z0', 'X0.0', 'Y0.0', 'Z0.0', 'X0.00', 'Y0.00', 'Z0.00', 'X0.000', 'Y0.000', 'Z0.000']
+                    # Считаем, сколько элементов в outstring являются координатами (начинаются с X, Y или Z)
+                    coord_items = [item for item in outstring if item.startswith(('X', 'Y', 'Z'))]
+                    if len(coord_items) > 0:
+                        # Проверяем, все ли эти координаты являются нулевыми
+                        if all(item in zero_coords for item in coord_items):
+                            outstring = [] # Очищаем, если это только X0 Y0 Z0
 
             if len(outstring) >= 1:
                 if OUTPUT_LINE_NUMBERS:
