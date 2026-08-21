@@ -2,25 +2,7 @@
 
 # ***************************************************************************
 # *   Copyright (c) 2014 sliptonic <shopinthewoods@gmail.com>               *
-# *                                                                         *
-# *   This file is part of the FreeCAD CAx development system.              *
-# *                                                                         *
-# *   This program is free software; you can redistribute it and/or modify  *
-# *   it under the terms of the GNU Lesser General Public License (LGPL)    *
-# *   as published by the Free Software Foundation; either version 2 of     *
-# *   the License, or (at your option) any later version.                   *
-# *   for detail see the LICENCE text file.                                 *
-# *                                                                         *
-# *   FreeCAD is distributed in the hope that it will be useful,            *
-# *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
-# *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
-# *   GNU Lesser General Public License for more details.                   *
-# *                                                                         *
-# *   You should have received a copy of the GNU Library General Public     *
-# *   License along with FreeCAD; if not, write to the Free Software        *
-# *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
-# *   USA                                                                   *
-# *                                                                         *
+# *   Postprocessor for NUM 750 CNC milling machine                         *
 # ***************************************************************************
 
 import FreeCAD
@@ -35,9 +17,7 @@ import PathScripts.PathUtils as PathUtils
 from builtins import open as pyopen
 
 TOOLTIP = """
-This is a postprocessor file for the Path workbench. It is used to
-take a pseudo-G-code fragment outputted by a Path object, and output
-real G-code suitable for a NUM 750 3-axis mill.
+Postprocessor for NUM 750 3-axis milling machine.
 """
 
 now = datetime.datetime.now()
@@ -46,38 +26,18 @@ parser = argparse.ArgumentParser(prog="num750", add_help=False)
 parser.add_argument("--no-header", action="store_true", help="suppress header output")
 parser.add_argument("--no-comments", action="store_true", help="suppress comment output")
 parser.add_argument("--line-numbers", action="store_true", help="prefix with line numbers")
-parser.add_argument(
-    "--no-show-editor",
-    action="store_true",
-    help="don't pop up editor before writing output",
-)
-parser.add_argument("--precision", default="3", help="number of digits of precision, default=3")
-parser.add_argument(
-    "--preamble",
-    help='set commands to be issued before the first command, default="G17 G54 G40 G49 G80 G90\\n"',
-)
-parser.add_argument(
-    "--postamble",
-    help='set commands to be issued after the last command, default="M05\\nG17 G54 G90 G80 G40\\nM02\\n"',
-)
-parser.add_argument(
-    "--inches", action="store_true", help="Convert output for US imperial mode (G20)"
-)
-parser.add_argument(
-    "--modal",
-    action="store_true",
-    help="Output the Same G-command Name USE NonModal Mode",
-)
-parser.add_argument("--axis-modal", action="store_true", help="Output the Same Axis Value Mode")
-parser.add_argument(
-    "--no-tlo",
-    action="store_true",
-    help="suppress tool length offset (G43) following tool changes",
-)
+parser.add_argument("--no-show-editor", action="store_true", help="don't pop up editor")
+parser.add_argument("--precision", default="3", help="number of digits of precision")
+parser.add_argument("--preamble", help="preamble commands")
+parser.add_argument("--postamble", help="postamble commands")
+parser.add_argument("--inches", action="store_true", help="imperial mode (G20)")
+parser.add_argument("--modal", action="store_true", help="modal mode")
+parser.add_argument("--axis-modal", action="store_true", help="axis modal mode")
+parser.add_argument("--no-tlo", action="store_true", help="suppress G43")
 
 TOOLTIP_ARGS = parser.format_help()
 
-# These globals set common customization preferences
+# === НАСТРОЙКИ ДЛЯ NUM750 ===
 OUTPUT_COMMENTS = False
 OUTPUT_HEADER = True
 OUTPUT_LINE_NUMBERS = False
@@ -98,7 +58,6 @@ CORNER_MAX = {"x": 500, "y": 300, "z": 300}
 PRECISION = 3
 
 PREAMBLE = """"""
-
 POSTAMBLE = """M02
 %
 """
@@ -106,7 +65,6 @@ POSTAMBLE = """M02
 PRE_OPERATION = """"""
 POST_OPERATION = """"""
 
-# Tool Change commands will be inserted before a tool change
 TOOL_CHANGE = """M0M61
 """
 
@@ -154,62 +112,65 @@ def export(objectslist, filename, argstring):
 
     for obj in objectslist:
         if not hasattr(obj, "Path"):
-            print("the object " + obj.Name + " is not a path. Please select only path and Compounds.")
+            print("the object " + obj.Name + " is not a path.")
             return None
 
     print("postprocessing...")
     gcode = ""
 
-    # write header for NUM750
+    # Заголовок NUM750
     if OUTPUT_HEADER:
-        gcode += "%004 (PROGRAM_NAME;1)\n"
+        gcode += "%005 (PROGRAM_NAME;1)\n"
         gcode += "E60000=-070000\n"
         gcode += "E61000=-177000\n"
         gcode += "E62000=-150000\n"
         gcode += "E50001=040000 E52001=000000\n"
         gcode += "E50002=040000 E52002=000000\n"
         gcode += "E50003=040000 E52003=000000\n"
-    # Write the preamble
-    if OUTPUT_COMMENTS:
-        gcode += linenumber() + "(begin preamble)\n"
+
+    # Preamble (пустой для NUM750)
     for line in PREAMBLE.splitlines():
         gcode += linenumber() + line + "\n"
-    gcode += linenumber() + UNITS + "\n"
+
+    # UNITS добавляем только если не пустой
+    if UNITS:
+        gcode += linenumber() + UNITS + "\n"
 
     for obj in objectslist:
         if not PathUtil.activeForOp(obj):
             continue
 
+        # Пропускаем операцию Fixture (G54)
+        if obj.Label == "Fixture":
+            continue
+
         if OUTPUT_COMMENTS:
             gcode += linenumber() + "(begin operation: %s)\n" % obj.Label
-            gcode += linenumber() + "(machine units: %s)\n" % (UNIT_SPEED_FORMAT)
+
         for line in PRE_OPERATION.splitlines(True):
             gcode += linenumber() + line
 
+        # Охлаждение
         coolantMode = PathUtil.coolantModeForOp(obj)
-
-        if OUTPUT_COMMENTS:
-            if not coolantMode == "None":
-                gcode += linenumber() + "(Coolant On:" + coolantMode + ")\n"
         if coolantMode == "Flood":
             gcode += linenumber() + "M8\n"
-        if coolantMode == "Mist":
+        elif coolantMode == "Mist":
             gcode += linenumber() + "M7\n"
 
+        # Обработка операций
         gcode += parse(obj)
 
         if OUTPUT_COMMENTS:
             gcode += linenumber() + "(finish operation: %s)\n" % obj.Label
+
         for line in POST_OPERATION.splitlines(True):
             gcode += linenumber() + line
 
-        if not coolantMode == "None":
-            if OUTPUT_COMMENTS:
-                gcode += linenumber() + "(Coolant Off:" + coolantMode + ")\n"
+        # Выключение охлаждения
+        if coolantMode != "None":
             gcode += linenumber() + "M9\n"
 
-    if OUTPUT_COMMENTS:
-        gcode += "(begin postamble)\n"
+    # Postamble
     for line in POSTAMBLE.splitlines():
         gcode += linenumber() + line + "\n"
 
@@ -267,13 +228,13 @@ def parse(pathobj):
         for c in pathobj.Path.Commands:
             outstring = []
             command = c.Name
-            
-            # Добавляем M41 перед M3 или M4 для NUM750 (режим редуктора)
+
+            # M41 перед M3/M4 для NUM750
             if command == "M3":
                 command = "M41M3"
             elif command == "M4":
                 command = "M41M4"
-                
+
             outstring.append(command)
 
             if MODAL is True:
@@ -283,24 +244,7 @@ def parse(pathobj):
             if c.Name.startswith("(") and not OUTPUT_COMMENTS:
                 continue
 
-            if command in ("G84", "G74") and "F" in c.Parameters:
-                pitch_mm = float(c.Parameters["F"])
-                c.Parameters.pop("F")
-                spindle_speed = None
-                if "S" in c.Parameters:
-                    spindle_speed = float(c.Parameters["S"])
-                    c.Parameters.pop("S")
-                if UNITS == "G20":
-                    pitch = pitch_mm / 25.4
-                else:
-                    pitch = pitch_mm
-                if spindle_speed is not None:
-                    feed_rate = pitch * spindle_speed
-                    speed = Units.Quantity(feed_rate, UNIT_SPEED_FORMAT)
-                    outstring.append("F" + format(float(speed.getValueAs(UNIT_SPEED_FORMAT)), precision_string))
-                else:
-                    outstring.append("F" + format(pitch, precision_string))
-
+            # Обработка параметров
             for param in params:
                 if param in c.Parameters:
                     if param == "F" and (currLocation.get(param) != c.Parameters[param] or OUTPUT_DOUBLES):
@@ -331,23 +275,14 @@ def parse(pathobj):
             lastcommand = command
             currLocation.update(c.Parameters)
 
-            # Check for Tool Change:
+            # Смена инструмента
             if command == "M6":
-                # stop the spindle
                 for line in TOOL_CHANGE.splitlines(True):
                     out += linenumber() + line
-                
-                # Add tool number with offset (T1D1M6 format)
                 if "T" in c.Parameters:
                     tool_num = int(c.Parameters["T"])
                     out += linenumber() + "T" + str(tool_num) + "D" + str(tool_num) + "M6\n"
-                
-                # Clear outstring so we don't print "M6" again at the end of the loop
                 outstring = []
-
-                if USE_TLO:
-                    tool_height = "\nG43 H" + str(int(c.Parameters["T"]))
-                    outstring.append(tool_height)
 
             if command == "message":
                 if OUTPUT_COMMENTS is False:
@@ -355,17 +290,16 @@ def parse(pathobj):
                 else:
                     outstring.pop(0)
 
-            # Skip empty G0 commands (no coordinates)
+            # Пропускаем пустые команды
             if len(outstring) >= 1:
-                # Check if it's just "G0" with no coordinates
-                if outstring == ["G0"]:
-                outstring = []  # Clear it
-    
-                if len(outstring) >= 1:
+                if outstring == ["G0"] or outstring == ["G1"]:
+                    outstring = []
+
+            if len(outstring) >= 1:
                 if OUTPUT_LINE_NUMBERS:
-                outstring.insert(0, linenumber())
+                    outstring.insert(0, linenumber())
                 for w in outstring:
-                out += w + COMMAND_SPACE
+                    out += w + COMMAND_SPACE
                 out += "\n"
 
         return out
