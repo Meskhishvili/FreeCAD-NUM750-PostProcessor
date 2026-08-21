@@ -57,7 +57,7 @@ UNIT_FORMAT = "mm"
 MACHINE_NAME = "NUM750"
 CORNER_MIN = {"x": 0, "y": 0, "z": 0}
 CORNER_MAX = {"x": 500, "y": 300, "z": 300}
-PRECISION = 3
+PRECISION = 0  # Без знаков после запятой
 
 PREAMBLE = """"""
 POSTAMBLE = """M02
