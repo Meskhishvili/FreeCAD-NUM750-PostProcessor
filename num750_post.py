@@ -307,10 +307,20 @@ if command == "M6":
                 else:
                     outstring.pop(0)
 
-            # Пропускаем пустые команды
-            if len(outstring) >= 1:
-                if outstring == ["G0"] or outstring == ["G1"]:
-                    outstring = []
+            # Skip empty G0/G1 commands and commands with only zero coordinates
+if len(outstring) >= 1:
+    # Check if it's just "G0" or "G1" with no coordinates
+    if outstring == ["G0"] or outstring == ["G1"]:
+        outstring = []
+    # Check if all coordinates are zero (X0 Y0, X0 Y0 Z0, etc.)
+    elif any(coord in ' '.join(outstring) for coord in ['X0.000', 'Y0.000', 'Z0.000']):
+        # Count how many zero coordinates
+        zero_count = sum(1 for coord in ['X0.000', 'Y0.000', 'Z0.000'] if coord in ' '.join(outstring))
+        # Count total coordinates
+        total_coords = sum(1 for coord in ['X', 'Y', 'Z'] if coord in ' '.join(outstring))
+        # If all coordinates are zero, skip
+        if zero_count == total_coords:
+            outstring = []
 
             if len(outstring) >= 1:
                 if OUTPUT_LINE_NUMBERS:
