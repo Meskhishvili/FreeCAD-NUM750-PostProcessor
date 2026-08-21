@@ -122,7 +122,7 @@ def export(objectslist, filename, argstring):
 
     # Заголовок NUM750
     if OUTPUT_HEADER:
-        gcode += "%008 (PROGRAM_NAME;1)\n"
+        gcode += "%009 (PROGRAM_NAME;1)\n"
         gcode += "E60000=-070000\n"
         gcode += "E61000=-177000\n"
         gcode += "E62000=-150000\n"
@@ -130,11 +130,9 @@ def export(objectslist, filename, argstring):
         gcode += "E50002=040000 E52002=000000\n"
         gcode += "E50003=040000 E52003=000000\n"
 
-    # Preamble (пустой для NUM750)
     for line in PREAMBLE.splitlines():
         gcode += linenumber() + line + "\n"
 
-    # UNITS добавляем только если не пустой
     if UNITS:
         gcode += linenumber() + UNITS + "\n"
 
@@ -142,7 +140,6 @@ def export(objectslist, filename, argstring):
         if not PathUtil.activeForOp(obj):
             continue
 
-        # Пропускаем операцию Fixture (G54)
         if obj.Label == "Fixture":
             continue
 
@@ -152,14 +149,12 @@ def export(objectslist, filename, argstring):
         for line in PRE_OPERATION.splitlines(True):
             gcode += linenumber() + line
 
-        # Охлаждение
         coolantMode = PathUtil.coolantModeForOp(obj)
         if coolantMode == "Flood":
             gcode += linenumber() + "M8\n"
         elif coolantMode == "Mist":
             gcode += linenumber() + "M7\n"
 
-        # Обработка операций
         gcode += parse(obj)
 
         if OUTPUT_COMMENTS:
@@ -168,11 +163,9 @@ def export(objectslist, filename, argstring):
         for line in POST_OPERATION.splitlines(True):
             gcode += linenumber() + line
 
-        # Выключение охлаждения
         if coolantMode != "None":
             gcode += linenumber() + "M9\n"
 
-    # Postamble
     for line in POSTAMBLE.splitlines():
         gcode += linenumber() + line + "\n"
 
@@ -305,12 +298,11 @@ def parse(pathobj):
                 else:
                     outstring.pop(0)
 
-            # Проверка на пустые команды или команды только с нулевыми координатами (X0 Y0 Z0)
+            # Проверка на пустые команды или команды только с нулевыми координатами
             if len(outstring) >= 1:
                 if outstring == ["G0"] or outstring == ["G1"] or outstring == ["G2"] or outstring == ["G3"]:
                     outstring = []
                 else:
-                    # Так как PRECISION = 0, нули будут выглядеть как X0, Y0, Z0
                     zero_coords = ['X0', 'Y0', 'Z0', 'X0.0', 'Y0.0', 'Z0.0', 'X0.00', 'Y0.00', 'Z0.00', 'X0.000', 'Y0.000', 'Z0.000']
                     coord_items = [item for item in outstring if item.startswith(('X', 'Y', 'Z', 'I', 'J'))]
                     if len(coord_items) > 0:
