@@ -42,7 +42,7 @@ OUTPUT_COMMENTS = False
 OUTPUT_HEADER = True
 OUTPUT_LINE_NUMBERS = False
 SHOW_EDITOR = True
-MODAL = False
+MODAL = True
 USE_TLO = False
 OUTPUT_DOUBLES = False
 COMMAND_SPACE = " "
@@ -120,7 +120,7 @@ def export(objectslist, filename, argstring):
 
     # Заголовок NUM750
     if OUTPUT_HEADER:
-        gcode += "%005 (PROGRAM_NAME;1)\n"
+        gcode += "%006 (PROGRAM_NAME;1)\n"
         gcode += "E60000=-070000\n"
         gcode += "E61000=-177000\n"
         gcode += "E62000=-150000\n"
