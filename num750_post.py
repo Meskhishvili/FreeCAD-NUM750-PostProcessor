@@ -47,6 +47,7 @@ USE_TLO = False
 OUTPUT_DOUBLES = False
 COMMAND_SPACE = " "
 LINENR = 100
+TOOL_COUNT = 0  # Счётчик инструментов
 
 UNITS = ""
 UNIT_SPEED_FORMAT = "mm/min"
@@ -275,14 +276,23 @@ def parse(pathobj):
             lastcommand = command
             currLocation.update(c.Parameters)
 
-            # Смена инструмента
-            if command == "M6":
-                for line in TOOL_CHANGE.splitlines(True):
-                    out += linenumber() + line
-                if "T" in c.Parameters:
-                    tool_num = int(c.Parameters["T"])
-                    out += linenumber() + "T" + str(tool_num) + "D" + str(tool_num) + "M6\n"
-                outstring = []
+            # Check for Tool Change:
+if command == "M6":
+    global TOOL_COUNT
+    TOOL_COUNT += 1
+    
+    # M0M61 только для 2-го и последующих инструментов
+    if TOOL_COUNT > 1:
+        for line in TOOL_CHANGE.splitlines(True):
+            out += linenumber() + line
+    
+    # Add tool number with offset (T1D1M6 format)
+    if "T" in c.Parameters:
+        tool_num = int(c.Parameters["T"])
+        out += linenumber() + "T" + str(tool_num) + "D" + str(tool_num) + "M6\n"
+    
+    # Clear outstring so we don't print "M6" again at the end of the loop
+    outstring = []
 
             if command == "message":
                 if OUTPUT_COMMENTS is False:
