@@ -356,11 +356,17 @@ def parse(pathobj):
                 else:
                     outstring.pop(0)
 
+            # Skip empty G0 commands (no coordinates)
             if len(outstring) >= 1:
+                # Check if it's just "G0" with no coordinates
+                if outstring == ["G0"]:
+                outstring = []  # Clear it
+    
+                if len(outstring) >= 1:
                 if OUTPUT_LINE_NUMBERS:
-                    outstring.insert(0, linenumber())
+                outstring.insert(0, linenumber())
                 for w in outstring:
-                    out += w + COMMAND_SPACE
+                out += w + COMMAND_SPACE
                 out += "\n"
 
         return out
