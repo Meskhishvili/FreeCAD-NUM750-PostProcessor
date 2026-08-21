@@ -48,6 +48,7 @@ OUTPUT_DOUBLES = False
 COMMAND_SPACE = " "
 LINENR = 100
 TOOL_COUNT = 0  # Счётчик инструментов
+LINE_NUM = 0  # Счётчик номеров строк N1, N2, N3
 
 UNITS = ""
 UNIT_SPEED_FORMAT = "mm/min"
@@ -230,11 +231,17 @@ def parse(pathobj):
             outstring = []
             command = c.Name
 
-            # M41 перед M3/M4 для NUM750
-            if command == "M3":
-                command = "M41M3"
-            elif command == "M4":
-                command = "M41M4"
+            # Добавляем M41 перед M3 или M4 для NUM750 (режим редуктора)
+if command == "M3":
+    global LINE_NUM
+    LINE_NUM += 1
+    out += "N" + str(LINE_NUM) + " "
+    command = "M41M3"
+elif command == "M4":
+    global LINE_NUM
+    LINE_NUM += 1
+    out += "N" + str(LINE_NUM) + " "
+    command = "M41M4"
 
             outstring.append(command)
 
