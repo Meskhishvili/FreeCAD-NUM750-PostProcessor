@@ -42,13 +42,13 @@ OUTPUT_COMMENTS = False
 OUTPUT_HEADER = True
 OUTPUT_LINE_NUMBERS = False
 SHOW_EDITOR = True
-MODAL = True  # Включено, чтобы не повторять G0/G1
+MODAL = True           # Убирает повторение G0, G1, G2, G3
 USE_TLO = False
-OUTPUT_DOUBLES = False
+OUTPUT_DOUBLES = False # Убирает повторение одинаковых координат
 COMMAND_SPACE = " "
 LINENR = 100
-TOOL_COUNT = 0  # Счётчик инструментов
-LINE_NUM = 0    # Счётчик номеров строк N1, N2, N3
+TOOL_COUNT = 0         # Счётчик инструментов (для M0M61)
+LINE_NUM = 0           # Счётчик номеров строк N1, N2 (для шпинделя)
 
 UNITS = ""
 UNIT_SPEED_FORMAT = "mm/min"
@@ -57,7 +57,7 @@ UNIT_FORMAT = "mm"
 MACHINE_NAME = "NUM750"
 CORNER_MIN = {"x": 0, "y": 0, "z": 0}
 CORNER_MAX = {"x": 500, "y": 300, "z": 300}
-PRECISION = 0  # Без знаков после запятой (5.000 -> 5)
+PRECISION = 0          # 0 знаков после запятой (убирает .000)
 
 PREAMBLE = """"""
 POSTAMBLE = """M02
@@ -122,7 +122,7 @@ def export(objectslist, filename, argstring):
 
     # Заголовок NUM750
     if OUTPUT_HEADER:
-        gcode += "%007 (PROGRAM_NAME;1)\n"
+        gcode += "%008 (PROGRAM_NAME;1)\n"
         gcode += "E60000=-070000\n"
         gcode += "E61000=-177000\n"
         gcode += "E62000=-150000\n"
@@ -209,7 +209,7 @@ def linenumber():
 
 def parse(pathobj):
     global PRECISION, MODAL, OUTPUT_DOUBLES, UNIT_FORMAT, UNIT_SPEED_FORMAT
-    global TOOL_COUNT, LINE_NUM  # Добавляем глобальные счётчики
+    global TOOL_COUNT, LINE_NUM
 
     out = ""
     lastcommand = None
@@ -232,7 +232,7 @@ def parse(pathobj):
             outstring = []
             command = c.Name
 
-            # Добавляем M41 перед M3 или M4 для NUM750 (режим редуктора) + номер строки
+            # Добавляем M41 перед M3 или M4 + номер строки N1, N2...
             if command == "M3":
                 LINE_NUM += 1
                 out += "N" + str(LINE_NUM) + " "
@@ -282,7 +282,7 @@ def parse(pathobj):
             lastcommand = command
             currLocation.update(c.Parameters)
 
-            # Check for Tool Change:
+            # Смена инструмента
             if command == "M6":
                 TOOL_COUNT += 1
                 
@@ -296,7 +296,7 @@ def parse(pathobj):
                     tool_num = int(c.Parameters["T"])
                     out += linenumber() + "T" + str(tool_num) + "D" + str(tool_num) + "M6\n"
                 
-                # Clear outstring so we don't print "M6" again at the end of the loop
+                # Очищаем outstring, чтобы не дублировать M6
                 outstring = []
 
             if command == "message":
@@ -305,19 +305,17 @@ def parse(pathobj):
                 else:
                     outstring.pop(0)
 
-            # Проверка на пустые команды или команды только с нулевыми координатами
+            # Проверка на пустые команды или команды только с нулевыми координатами (X0 Y0 Z0)
             if len(outstring) >= 1:
-                if outstring == ["G0"] or outstring == ["G1"]:
+                if outstring == ["G0"] or outstring == ["G1"] or outstring == ["G2"] or outstring == ["G3"]:
                     outstring = []
                 else:
                     # Так как PRECISION = 0, нули будут выглядеть как X0, Y0, Z0
                     zero_coords = ['X0', 'Y0', 'Z0', 'X0.0', 'Y0.0', 'Z0.0', 'X0.00', 'Y0.00', 'Z0.00', 'X0.000', 'Y0.000', 'Z0.000']
-                    # Считаем, сколько элементов в outstring являются координатами (начинаются с X, Y или Z)
-                    coord_items = [item for item in outstring if item.startswith(('X', 'Y', 'Z'))]
+                    coord_items = [item for item in outstring if item.startswith(('X', 'Y', 'Z', 'I', 'J'))]
                     if len(coord_items) > 0:
-                        # Проверяем, все ли эти координаты являются нулевыми
                         if all(item in zero_coords for item in coord_items):
-                            outstring = [] # Очищаем, если это только X0 Y0 Z0
+                            outstring = []
 
             if len(outstring) >= 1:
                 if OUTPUT_LINE_NUMBERS:
